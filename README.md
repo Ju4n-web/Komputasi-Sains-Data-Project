@@ -8,7 +8,7 @@ Repository ini berisi kumpulan materi, rangkuman, dan implementasi kode dari mat
 
 ---
 
-## 👥 Anggota Kelompok
+## 👥 Anggota Kelompok 3
 
 | No | Nama | NRP |
 |----|------|-----|
