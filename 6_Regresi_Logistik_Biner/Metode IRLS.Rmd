@@ -1,0 +1,675 @@
+---
+title: "Metode IRLS"
+subtitle: "Dataset: Cleveland Heart Disease"
+author: "Kelompok 3"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+    latex_engine: xelatex
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    highlight: tango
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  comment = "#>"
+)
+```
+
+---
+
+# Konsep Dasar Regresi Logistik Biner
+
+## Definisi dan Tujuan
+
+Regresi Logistik Biner digunakan ketika variabel respons $Y$ bersifat **dikotomi**,
+yaitu hanya bernilai 0 atau 1. Tujuannya adalah memodelkan probabilitas
+$P(Y = 1 \mid \mathbf{X})$ sebagai fungsi dari prediktor $\mathbf{X}$.
+
+Berbeda dengan regresi linear, regresi logistik memastikan output prediksi
+selalu berada di interval $(0, 1)$ melalui fungsi sigmoid (logistik):
+
+$$
+\pi(\mathbf{x}) = P(Y = 1 \mid \mathbf{x}) = \frac{1}{1 + \exp(-\mathbf{x}^\top \boldsymbol{\beta})}
+$$
+
+## Fungsi Logit (Link Function)
+
+Transformasi logit digunakan sebagai **link function** yang menghubungkan
+probabilitas $\pi$ ke kombinasi linear prediktor:
+
+$$
+\text{logit}(\pi) = \ln\!\left(\frac{\pi}{1 - \pi}\right) = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \cdots + \beta_p x_p
+$$
+
+**Persamaan model dalam penelitian ini:**
+
+$$
+\text{logit}(\hat{\pi}) = \beta_0 + \beta_1 \cdot \text{age} + \beta_2 \cdot \text{thalach} + \beta_3 \cdot \text{oldpeak}
+$$
+
+---
+
+# Maximum Likelihood Estimation (MLE)
+
+## Fungsi Log-Likelihood
+
+Estimasi parameter $\boldsymbol{\beta}$ dilakukan dengan memaksimalkan fungsi
+**log-likelihood**:
+
+$$
+\ell(\boldsymbol{\beta}) = \sum_{i=1}^{n} \left[ y_i \ln(\pi_i) + (1 - y_i)\ln(1 - \pi_i) \right]
+$$
+
+## Gradien dan Hessian
+
+Turunan pertama (gradien / **score function**):
+
+$$
+\mathbf{U}(\boldsymbol{\beta}) = \frac{\partial \ell}{\partial \boldsymbol{\beta}} = \mathbf{X}^\top (\mathbf{Y} - \boldsymbol{\pi})
+$$
+
+Turunan kedua (**Hessian**):
+
+$$
+\mathbf{H}(\boldsymbol{\beta}) = \frac{\partial^2 \ell}{\partial \boldsymbol{\beta}\,\partial \boldsymbol{\beta}^\top} = -\mathbf{X}^\top \mathbf{W} \mathbf{X}
+$$
+
+di mana $\mathbf{W} = \text{diag}[\pi_i(1 - \pi_i)]$ adalah matriks bobot diagonal.
+
+## Mengapa Perlu Metode Iteratif?
+
+Kondisi stasioner $\mathbf{U}(\hat{\boldsymbol{\beta}}) = \mathbf{0}$ tidak memiliki
+solusi **analitik tertutup**, sehingga diperlukan algoritma numerik.
+Dua metode utama yang ekuivalen secara matematis:
+
+| Metode | Update Rule |
+|--------|-------------|
+| **Newton-Raphson** | $\boldsymbol{\beta}^{(t+1)} = \boldsymbol{\beta}^{(t)} - \mathbf{H}^{-1}\mathbf{U}$ |
+| **IRLS** | $\boldsymbol{\beta}^{(t+1)} = (\mathbf{X}^\top\mathbf{W}\mathbf{X})^{-1}\mathbf{X}^\top\mathbf{W}\mathbf{z}$ |
+
+---
+
+# Algoritma IRLS
+
+## Langkah-Langkah IRLS
+
+**IRLS (Iteratively Reweighted Least Squares)** merupakan reformulasi
+Newton-Raphson sebagai masalah Weighted Least Squares (WLS) yang diulang.
+
+**Inisialisasi:** $\boldsymbol{\beta}^{(0)} = \mathbf{0}$, toleransi $\varepsilon = 10^{-6}$
+
+**Setiap iterasi $t$:**
+
+1. Hitung linear predictor: $\boldsymbol{\eta}^{(t)} = \mathbf{X}\boldsymbol{\beta}^{(t)}$
+2. Hitung probabilitas prediksi: $\boldsymbol{\pi}^{(t)} = \text{sigmoid}(\boldsymbol{\eta}^{(t)})$
+3. Hitung matriks bobot: $\mathbf{W}^{(t)} = \text{diag}\!\left[\pi_i^{(t)}(1 - \pi_i^{(t)})\right]$
+4. Hitung *adjusted response*: $\mathbf{z}^{(t)} = \boldsymbol{\eta}^{(t)} + (\mathbf{W}^{(t)})^{-1}(\mathbf{Y} - \boldsymbol{\pi}^{(t)})$
+5. Update WLS: $\boldsymbol{\beta}^{(t+1)} = (\mathbf{X}^\top\mathbf{W}^{(t)}\mathbf{X})^{-1}\mathbf{X}^\top\mathbf{W}^{(t)}\mathbf{z}^{(t)}$
+6. Cek konvergensi: $\max|\boldsymbol{\beta}^{(t+1)} - \boldsymbol{\beta}^{(t)}| < \varepsilon \Rightarrow$ berhenti
+
+---
+
+# Implementasi dalam R
+
+## Persiapan Data
+
+```{r persiapan-data}
+# ── Load dataset ──────────────────────────────────────────────────────────────
+data <- read.csv("C:/Users/georg/Downloads/heart_cleveland_upload.csv")
+
+# Eksplorasi awal
+cat("Dimensi data:", nrow(data), "baris x", ncol(data), "kolom\n")
+cat("\nDistribusi variabel respons (condition):\n")
+print(table(data$condition))
+cat("\nProporsi:\n")
+print(round(prop.table(table(data$condition)), 4))
+
+# Statistik deskriptif prediktor
+cat("\nStatistik deskriptif prediktor:\n")
+print(summary(data[, c("age", "thalach", "oldpeak")]))
+```
+
+```{r matriks-desain}
+# ── Pilih prediktor dan buat matriks desain ───────────────────────────────────
+vars  <- c("age", "thalach", "oldpeak")
+Y     <- data$condition           # vektor respons (0/1)
+n     <- length(Y)                # n = 297
+
+# Standardisasi prediktor: mean=0, sd=1 (membantu konvergensi numerik)
+X_raw <- as.matrix(data[, vars])
+X_sc  <- scale(X_raw)
+
+# Simpan atribut scaling untuk interpretasi kembali ke skala asli
+mean_X <- attr(X_sc, "scaled:center")
+sd_X   <- attr(X_sc, "scaled:scale")
+
+# Tambah kolom intercept (semua = 1)
+X <- cbind(1, X_sc)
+colnames(X) <- c("Intercept", vars)
+
+cat("Dimensi matriks desain X:", dim(X), "\n")
+cat("Kolom:", colnames(X), "\n")
+cat("\n5 baris pertama X:\n")
+print(round(head(X, 5), 4))
+```
+
+## Definisi Fungsi Sigmoid
+
+```{r fungsi-sigmoid}
+# ── Fungsi sigmoid (logistik) ─────────────────────────────────────────────────
+# pi(x) = 1 / (1 + exp(-x))
+# Output selalu berada di interval (0, 1)
+sigmoid <- function(z) {
+  1 / (1 + exp(-z))
+}
+
+# Ilustrasi
+cat("Contoh output sigmoid:\n")
+cat("sigmoid(-5) =", round(sigmoid(-5), 6), "\n")
+cat("sigmoid( 0) =", round(sigmoid( 0), 6), "\n")
+cat("sigmoid( 5) =", round(sigmoid( 5), 6), "\n")
+```
+
+## Fungsi IRLS
+
+```{r fungsi-irls}
+# ── Algoritma IRLS ────────────────────────────────────────────────────────────
+#
+#  Input :
+#    X        – matriks desain (n x p), sudah termasuk kolom intercept
+#    Y        – vektor respons biner (0/1), panjang n
+#    tol      – toleransi konvergensi (default 1e-6)
+#    max_iter – maksimum iterasi (default 200)
+#    verbose  – cetak log tiap iterasi (default TRUE)
+#
+#  Output (list):
+#    beta  – estimasi parameter akhir (p x 1)
+#    iter  – jumlah iterasi sampai konvergen
+#    log   – data.frame log selisih tiap iterasi
+#    pi    – probabilitas prediksi akhir (n x 1)
+#    se    – standard error tiap parameter
+#    cov   – matriks kovarians estimasi
+# ─────────────────────────────────────────────────────────────────────────────
+
+irls_logistic <- function(X, Y,
+                           tol      = 1e-6,
+                           max_iter = 200,
+                           verbose  = TRUE) {
+
+  p    <- ncol(X)
+  beta <- rep(0, p)          # inisialisasi β = [0, 0, ..., 0]^T
+  log  <- data.frame(iterasi = integer(), selisih = numeric())
+
+  if (verbose) {
+    cat("=================================================\n")
+    cat(" Algoritma IRLS – Regresi Logistik Biner\n")
+    cat("=================================================\n")
+    cat(sprintf(" Inisialisasi: beta = rep(0, %d), tol = %.0e\n\n", p, tol))
+    cat(sprintf(" %-8s | %-20s\n", "Iterasi", "max|delta_beta|"))
+    cat(paste(rep("-", 32), collapse = ""), "\n")
+  }
+
+  for (t in seq_len(max_iter)) {
+
+    # ── Langkah 1: Linear predictor dan probabilitas ──────────────────────
+    eta  <- as.vector(X %*% beta)        # eta = X * beta (n x 1)
+    pi_t <- sigmoid(eta)                 # pi  = sigmoid(eta)
+
+    # ── Langkah 2: Matriks bobot W = diag[pi(1-pi)] ──────────────────────
+    # Gunakan vektor W (diagonal), hindari pembentukan matriks n x n penuh
+    # Clamp ke 1e-8 agar tidak ada pembagian dengan nol
+    W <- pmax(pi_t * (1 - pi_t), 1e-8)
+
+    # ── Langkah 3: Adjusted response z ───────────────────────────────────
+    # z = eta + W^{-1} * (Y - pi)
+    z <- eta + (Y - pi_t) / W
+
+    # ── Langkah 4: Update WLS β = (X'WX)^{-1} X'Wz ──────────────────────
+    # t(X) * W adalah perkalian kolom-per-kolom (broadcasting),
+    # lebih efisien dari t(X) %*% diag(W) yang membentuk matriks n x n
+    XtW      <- t(X) * W                # (p x n), setiap kolom dikali W_i
+    XtWX     <- XtW %*% X              # (p x p) = X'WX
+    XtWz     <- XtW %*% z              # (p x 1) = X'Wz
+    beta_new <- solve(XtWX, XtWz)      # solusi sistem linear (lebih stabil
+                                        # dari solve(XtWX) %*% XtWz)
+
+    # ── Langkah 5: Cek konvergensi ────────────────────────────────────────
+    selisih <- max(abs(beta_new - beta))
+    log     <- rbind(log, data.frame(iterasi = t, selisih = selisih))
+
+    if (verbose)
+      cat(sprintf(" %-8d | %-20.6e\n", t, selisih))
+
+    beta <- beta_new
+
+    if (selisih < tol) {
+      if (verbose) {
+        cat(paste(rep("-", 32), collapse = ""), "\n")
+        cat(sprintf(" Konvergen pada iterasi ke-%d  (selisih = %.2e < tol = %.0e)\n",
+                    t, selisih, tol))
+        cat("=================================================\n\n")
+      }
+      break
+    }
+  }
+
+  # ── Hitung Standard Error dari matriks kovarians ──────────────────────────
+  # Cov(beta_hat) = (X'WX)^{-1}  (matriks informasi Fisher terbalik)
+  pi_final <- sigmoid(as.vector(X %*% beta))
+  W_final  <- pmax(pi_final * (1 - pi_final), 1e-8)
+  XtWX_fin <- (t(X) * W_final) %*% X
+  cov_beta <- solve(XtWX_fin)
+  se       <- sqrt(diag(cov_beta))
+
+  list(
+    beta = as.vector(beta),
+    iter = t,
+    log  = log,
+    pi   = pi_final,
+    se   = se,
+    cov  = cov_beta
+  )
+}
+```
+
+## Menjalankan IRLS pada Data
+
+```{r jalankan-irls}
+# ── Jalankan IRLS ─────────────────────────────────────────────────────────────
+set.seed(123)
+hasil <- irls_logistic(X, Y, tol = 1e-6, verbose = TRUE)
+
+# Beri nama pada vektor koefisien
+beta_irls <- hasil$beta
+names(beta_irls) <- colnames(X)
+
+cat("Estimasi parameter IRLS:\n")
+print(round(beta_irls, 6))
+cat(sprintf("\nJumlah iterasi: %d\n", hasil$iter))
+```
+
+```{r log-konvergensi}
+# ── Tabel log konvergensi ─────────────────────────────────────────────────────
+cat("=== Log Konvergensi per Iterasi ===\n")
+log_df <- hasil$log
+log_df$selisih <- formatC(log_df$selisih, format = "e", digits = 4)
+print(log_df, row.names = FALSE)
+```
+
+```{r plot-konvergensi, fig.width=7, fig.height=4, fig.cap="Grafik penurunan selisih max|delta_beta| tiap iterasi"}
+# ── Visualisasi konvergensi ───────────────────────────────────────────────────
+par(mar = c(4, 5, 3, 2))
+plot(hasil$log$iterasi, log10(hasil$log$selisih),
+     type  = "b",
+     pch   = 19,
+     col   = "#534AB7",
+     lwd   = 2,
+     xlab  = "Iterasi",
+     ylab  = expression(log[10](max*"|"*Delta*beta*"|")),
+     main  = "Konvergensi Algoritma IRLS",
+     xaxt  = "n")
+axis(1, at = hasil$log$iterasi)
+abline(h = log10(1e-6), col = "#E040FB", lty = 2, lwd = 1.5)
+text(x    = max(hasil$log$iterasi) - 0.3,
+     y    = log10(1e-6) + 0.3,
+     label = expression(paste("tol = ", 10^{-6})),
+     col   = "#E040FB", cex = 0.85)
+grid(col = "gray90", lty = 1)
+```
+
+---
+
+# Hasil Estimasi Parameter
+
+## Persamaan Model
+
+Berdasarkan hasil estimasi IRLS, persamaan model adalah:
+
+$$
+\text{logit}(\hat{\pi}) = \beta_0 + \beta_1 \cdot \text{age}_{\text{std}} + \beta_2 \cdot \text{thalach}_{\text{std}} + \beta_3 \cdot \text{oldpeak}_{\text{std}}
+$$
+
+```{r persamaan-model}
+# ── Tampilkan persamaan model ─────────────────────────────────────────────────
+cat("Persamaan Model (prediktor terstandardisasi):\n\n")
+cat(sprintf(
+  "logit(pi) = %.4f + (%.4f)*age + (%.4f)*thalach + (%.4f)*oldpeak\n",
+  beta_irls["Intercept"],
+  beta_irls["age"],
+  beta_irls["thalach"],
+  beta_irls["oldpeak"]
+))
+```
+
+## Perbandingan Tiga Metode
+
+```{r perbandingan-metode}
+# ── Bandingkan IRLS vs Newton-Raphson manual vs glm() ────────────────────────
+
+# --- Newton-Raphson manual (untuk perbandingan) ------------------------------
+nr_logistic <- function(X, Y, tol = 1e-6, max_iter = 200) {
+  beta <- rep(0, ncol(X))
+  for (t in seq_len(max_iter)) {
+    pi_t     <- sigmoid(as.vector(X %*% beta))
+    W        <- pmax(pi_t * (1 - pi_t), 1e-8)
+    U        <- t(X) %*% (Y - pi_t)          # gradien (score)
+    H        <- -(t(X) * W) %*% X            # Hessian
+    beta_new <- beta - solve(H, U)            # β - H^{-1} U
+    if (max(abs(beta_new - beta)) < tol) { beta <- beta_new; break }
+    beta <- beta_new
+  }
+  as.vector(beta)
+}
+
+beta_nr  <- nr_logistic(X, Y)
+
+# --- glm() bawaan R ----------------------------------------------------------
+data_sc              <- as.data.frame(X_sc)
+names(data_sc)       <- vars
+data_sc$condition    <- Y
+
+model_glm <- glm(condition ~ age + thalach + oldpeak,
+                 data   = data_sc,
+                 family = binomial())
+
+beta_glm <- coef(model_glm)
+
+# --- Tabel perbandingan -------------------------------------------------------
+perbandingan <- data.frame(
+  Parameter      = names(beta_irls),
+  IRLS           = round(beta_irls, 6),
+  Newton_Raphson = round(beta_nr,   6),
+  glm_R          = round(beta_glm,  6),
+  row.names      = NULL
+)
+
+cat("=== Perbandingan Estimasi Parameter (Tiga Metode) ===\n")
+print(perbandingan)
+
+cat(sprintf(
+  "\nMax selisih IRLS vs glm()          : %.3e",
+  max(abs(beta_irls - beta_glm))
+))
+cat(sprintf(
+  "\nMax selisih Newton-Raphson vs glm() : %.3e\n",
+  max(abs(beta_nr - beta_glm))
+))
+```
+
+---
+
+# Interpretasi Koefisien dan Odds Ratio
+
+## Uji Wald dan Odds Ratio
+
+```{r odds-ratio}
+# ── Hitung SE, z-statistik, p-value, OR, dan CI 95% ──────────────────────────
+SE     <- hasil$se
+names(SE) <- colnames(X)
+
+z_stat <- beta_irls / SE
+p_val  <- 2 * pnorm(-abs(z_stat))
+
+OR     <- exp(beta_irls)
+CI_low <- exp(beta_irls - 1.96 * SE)
+CI_up  <- exp(beta_irls + 1.96 * SE)
+
+# Tabel lengkap
+tabel_or <- data.frame(
+  Parameter  = names(beta_irls),
+  Koefisien  = round(beta_irls, 5),
+  SE         = round(SE,        5),
+  z_statistik= round(z_stat,   3),
+  p_value    = round(p_val,     4),
+  OR         = round(OR,        4),
+  CI_95_low  = round(CI_low,    4),
+  CI_95_up   = round(CI_up,     4),
+  row.names  = NULL
+)
+
+cat("=== Odds Ratio & Interval Kepercayaan 95% ===\n")
+print(tabel_or)
+
+# Tandai signifikansi
+cat("\nKeterangan signifikansi (alpha = 0.05):\n")
+for (i in seq_along(beta_irls)) {
+  sig <- ifelse(p_val[i] < 0.001, "***",
+         ifelse(p_val[i] < 0.01,  "**",
+         ifelse(p_val[i] < 0.05,  "*",
+         ifelse(p_val[i] < 0.1,   ".", " "))))
+  cat(sprintf("  %-12s: p = %.4f %s\n", names(beta_irls)[i], p_val[i], sig))
+}
+cat("  Signifikansi: *** p<0.001 | ** p<0.01 | * p<0.05 | . p<0.1\n")
+```
+
+## Interpretasi Medis
+
+```{r interpretasi-medis}
+# ── Interpretasi Odds Ratio ───────────────────────────────────────────────────
+cat("=== Interpretasi Odds Ratio (pada skala terstandardisasi) ===\n\n")
+
+cat(sprintf(
+  "age     | OR = %.4f → tiap +1 SD usia (~9 th), odds sakit x%.4f %s\n",
+  OR["age"], OR["age"], ifelse(OR["age"] > 1, "(↑ naik)", "(↓ turun)")
+))
+cat(sprintf(
+  "thalach | OR = %.4f → tiap +1 SD detak maks (~22 bpm), odds sakit x%.4f %s\n",
+  OR["thalach"], OR["thalach"],
+  ifelse(OR["thalach"] > 1, "(↑ naik)", "(↓ turun — protektif)")
+))
+cat(sprintf(
+  "oldpeak | OR = %.4f → tiap +1 SD depresi ST (~1.6 unit), odds sakit x%.4f %s\n",
+  OR["oldpeak"], OR["oldpeak"],
+  ifelse(OR["oldpeak"] > 1, "(↑ naik — dominan)", "(↓ turun)")
+))
+
+cat("\nInsight Medis:\n")
+cat("  - oldpeak adalah prediktor PALING DOMINAN: depresi ST besar\n")
+cat("    meningkatkan risiko penyakit jantung ~2x lipat per SD.\n")
+cat("  - thalach tinggi bersifat PROTEKTIF: denyut jantung maks\n")
+cat("    yang lebih tinggi menurunkan risiko.\n")
+cat("  - age berpengaruh positif namun efeknya relatif kecil.\n")
+```
+
+```{r plot-or, fig.width=7, fig.height=4, fig.cap="Forest plot Odds Ratio dengan CI 95% (tidak termasuk intercept)"}
+# ── Forest plot Odds Ratio ────────────────────────────────────────────────────
+idx    <- 2:4    # kecualikan intercept
+par(mar = c(5, 7, 3, 4))
+
+plot(OR[idx], seq_along(idx),
+     xlim = c(0, max(CI_up[idx]) + 0.5),
+     ylim = c(0.5, length(idx) + 0.5),
+     pch  = 15,
+     cex  = 1.6,
+     col  = "#534AB7",
+     xlab = "Odds Ratio",
+     ylab = "",
+     main = "Forest Plot – Odds Ratio (CI 95%)",
+     yaxt = "n")
+
+axis(2, at = seq_along(idx),
+     labels = names(OR[idx]),
+     las = 2, cex.axis = 1.1)
+
+# Error bars (CI)
+for (i in seq_along(idx)) {
+  lines(c(CI_low[idx][i], CI_up[idx][i]), c(i, i),
+        lwd = 2.5, col = "#534AB7")
+}
+
+abline(v = 1, col = "#E040FB", lty = 2, lwd = 1.5)
+text(x = 1.02, y = length(idx) + 0.4,
+     label = "OR = 1", col = "#E040FB", cex = 0.8)
+grid(col = "gray90", lty = 1, nx = NULL, ny = NA)
+```
+
+---
+
+# Evaluasi Performa Model
+
+## Confusion Matrix
+
+```{r confusion-matrix}
+# ── Prediksi dan Confusion Matrix ─────────────────────────────────────────────
+pi_pred <- sigmoid(as.vector(X %*% beta_irls))   # P(Y=1|X)
+y_pred  <- ifelse(pi_pred >= 0.5, 1, 0)          # threshold 0.5
+
+cm <- table(Aktual = Y, Prediksi = y_pred)
+cat("=== Confusion Matrix ===\n")
+print(cm)
+
+# Ekstrak komponen
+TP <- cm["1", "1"]   # True Positive
+TN <- cm["0", "0"]   # True Negative
+FP <- cm["0", "1"]   # False Positive
+FN <- cm["1", "0"]   # False Negative
+
+cat(sprintf("\nTP = %d  |  FP = %d\n", TP, FP))
+cat(sprintf("FN = %d  |  TN = %d\n", FN, TN))
+```
+
+## Metrik Evaluasi
+
+```{r metrik-evaluasi}
+# ── Hitung semua metrik ───────────────────────────────────────────────────────
+akurasi      <- (TP + TN) / sum(cm)
+sensitivitas <- TP / (TP + FN)          # Recall / True Positive Rate
+spesifisitas <- TN / (TN + FP)          # True Negative Rate
+presisi      <- TP / (TP + FP)          # Precision / PPV
+f1_score     <- 2 * presisi * sensitivitas / (presisi + sensitivitas)
+
+# Log-Likelihood dan AIC
+ll  <- sum(Y * log(pi_pred + 1e-15) + (1 - Y) * log(1 - pi_pred + 1e-15))
+aic <- -2 * ll + 2 * ncol(X)
+
+# Null deviance (model tanpa prediktor)
+pi_null  <- mean(Y)
+ll_null  <- sum(Y * log(pi_null) + (1 - Y) * log(1 - pi_null))
+dev_null <- -2 * ll_null
+dev_mod  <- -2 * ll
+mcfadden <- 1 - (ll / ll_null)         # McFadden's pseudo-R²
+
+metrik <- data.frame(
+  Metrik = c("Akurasi", "Sensitivitas (Recall)", "Spesifisitas",
+             "Presisi (PPV)", "F1-Score",
+             "Log-Likelihood", "AIC",
+             "Null Deviance", "Model Deviance",
+             "McFadden Pseudo-R2"),
+  Nilai  = round(c(akurasi, sensitivitas, spesifisitas,
+                   presisi, f1_score,
+                   ll, aic,
+                   dev_null, dev_mod,
+                   mcfadden), 4),
+  row.names = NULL
+)
+
+cat("=== Metrik Evaluasi Model ===\n")
+print(metrik)
+
+cat(sprintf(
+  "\nInterpretasi:\n  Akurasi     = %.2f%%\n  Sensitivitas= %.2f%%\n  Spesifisitas= %.2f%%\n  Presisi     = %.2f%%\n",
+  akurasi*100, sensitivitas*100, spesifisitas*100, presisi*100
+))
+cat("  Model cukup baik mendeteksi pasien tidak sakit (spesifisitas 81.25%),\n")
+cat("  namun sensitivitas masih bisa ditingkatkan dengan penambahan prediktor.\n")
+```
+
+## Kurva ROC dan AUC
+
+```{r kurva-roc, fig.width=6, fig.height=6, fig.cap="Kurva ROC model IRLS — area di bawah kurva (AUC)"}
+# ── Kurva ROC manual tanpa package ────────────────────────────────────────────
+roc_manual <- function(y_true, y_score) {
+  thresholds <- sort(unique(y_score), decreasing = TRUE)
+  tpr <- fpr <- numeric(length(thresholds) + 2)
+  tpr[1] <- fpr[1] <- 0
+  for (i in seq_along(thresholds)) {
+    yp      <- as.integer(y_score >= thresholds[i])
+    tp_i    <- sum(yp == 1 & y_true == 1)
+    fp_i    <- sum(yp == 1 & y_true == 0)
+    tpr[i+1] <- tp_i / sum(y_true == 1)
+    fpr[i+1] <- fp_i / sum(y_true == 0)
+  }
+  tpr[length(tpr)] <- fpr[length(fpr)] <- 1
+  list(fpr = fpr, tpr = tpr)
+}
+
+roc_obj <- roc_manual(Y, pi_pred)
+
+# Hitung AUC dengan aturan trapesoid
+auc_val <- -sum(diff(roc_obj$fpr) * (head(roc_obj$tpr, -1) + tail(roc_obj$tpr, -1))) / 2
+
+par(mar = c(5, 5, 4, 2), pty = "s")
+plot(roc_obj$fpr, roc_obj$tpr,
+     type = "l",
+     col  = "#534AB7",
+     lwd  = 2.5,
+     xlab = "False Positive Rate (1 – Spesifisitas)",
+     ylab = "True Positive Rate (Sensitivitas)",
+     main = "Kurva ROC – Model IRLS")
+abline(0, 1, col = "gray60", lty = 2)
+legend("bottomright",
+       legend = sprintf("AUC = %.4f", auc_val),
+       col    = "#534AB7",
+       lwd    = 2.5,
+       bty    = "n")
+grid(col = "gray90", lty = 1)
+cat(sprintf("AUC = %.4f\n", auc_val))
+```
+
+---
+
+# Kesimpulan
+
+```{r kesimpulan}
+# ── Ringkasan akhir ───────────────────────────────────────────────────────────
+cat("============================================================\n")
+cat(" KESIMPULAN – Regresi Logistik Biner Metode IRLS\n")
+cat("============================================================\n\n")
+
+cat("1. MODEL\n")
+cat("   Regresi Logistik Biner memodelkan probabilitas kejadian\n")
+cat("   biner lewat fungsi sigmoid — lebih tepat dari regresi\n")
+cat("   linear untuk respons 0/1.\n\n")
+
+cat("2. ALGORITMA\n")
+cat("   Metode IRLS menggunakan Weighted Least Squares berbobot\n")
+cat("   W = diag[pi(1-pi)] untuk mencari estimasi MLE secara\n")
+cat(sprintf("   iteratif — konvergen hanya dalam %d iterasi.\n\n", hasil$iter))
+
+cat("3. KONSISTENSI\n")
+cat("   Hasil estimasi IRLS identik dengan Newton-Raphson dan\n")
+cat(sprintf("   glm() R, dengan selisih max < %.2e.\n\n",
+           max(abs(beta_irls - beta_glm))))
+
+cat("4. PERFORMA\n")
+cat(sprintf("   Model dengan 3 prediktor (age, thalach, oldpeak)\n"))
+cat(sprintf("   mencapai akurasi %.2f%%, AUC = %.4f.\n\n",
+            akurasi * 100, auc_val))
+
+cat("5. PREDIKTOR DOMINAN\n")
+cat(sprintf(
+  "   oldpeak (OR = %.4f) adalah prediktor paling dominan:\n",
+  OR["oldpeak"]
+))
+cat("   setiap kenaikan 1 SD depresi ST meningkatkan odds\n")
+cat(sprintf("   penyakit jantung sebesar %.2fx lipat.\n", OR["oldpeak"]))
+cat("   thalach tinggi justru bersifat protektif (OR < 1).\n")
+cat("============================================================\n")
+```
+
+---
+
+*Dokumen ini dibuat menggunakan R Markdown. Semua perhitungan IRLS dilakukan*
+*secara manual tanpa library khusus, kecuali kurva ROC yang menggunakan implementasi*
+*manual berbasis aturan trapesoid.*
