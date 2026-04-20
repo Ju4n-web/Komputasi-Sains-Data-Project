@@ -1,0 +1,599 @@
+---
+title: "Regresi Logistik Biner: Metode Newton-Raphson"
+subtitle: "Bassa Bhaskara - 5052241030"
+author: "Kelompok 3"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: false
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+---
+
+# Pendahuluan
+
+## Apa itu Regresi Logistik Biner?
+
+**Regresi Logistik Biner** adalah metode statistika yang digunakan untuk memodelkan hubungan antara satu atau lebih variabel prediktor (kontinu maupun kategorik) dengan variabel respons yang bersifat **biner** (dua kategori: 0 atau 1).
+
+Berbeda dengan regresi linear yang memprediksi nilai kontinu, regresi logistik memprediksi **probabilitas** suatu observasi masuk ke dalam kategori tertentu.
+
+**Contoh kasus:**
+
+| Variabel Respons (Y)   | Kategori 0    | Kategori 1        |
+|------------------------|---------------|-------------------|
+| Penyakit jantung       | Tidak sakit   | Sakit             |
+| Email                  | Bukan spam    | Spam              |
+| Kredit                 | Tidak macet   | Macet             |
+| Kelulusan ujian        | Tidak lulus   | Lulus             |
+
+## Mengapa Tidak Pakai Regresi Linear Biasa?
+
+Jika kita tetap memakai regresi linear untuk respons biner, prediksi probabilitas bisa keluar dari rentang $[0, 1]$ — yang secara logis tidak masuk akal. Oleh karena itu, regresi logistik menggunakan **fungsi sigmoid (logistik)** yang secara alami membatasi output di antara 0 dan 1.
+
+---
+
+# Dasar Matematis
+
+## Fungsi Logit dan Sigmoid
+
+Regresi logistik memodelkan log-odds (logit) dari probabilitas sebagai fungsi linear dari prediktor:
+
+$$\text{logit}(\pi_i) = \ln\left(\frac{\pi_i}{1 - \pi_i}\right) = \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \cdots + \beta_p x_{ip} = \mathbf{x}_i^T \boldsymbol{\beta}$$
+
+Dengan melakukan transformasi balik (invers logit), diperoleh **fungsi sigmoid**:
+
+$$\pi_i = P(Y_i = 1 \mid \mathbf{x}_i) = \frac{1}{1 + e^{-\mathbf{x}_i^T \boldsymbol{\beta}}}$$
+
+Fungsi sigmoid selalu menghasilkan nilai antara 0 dan 1, sesuai syarat probabilitas.
+
+## Fungsi Likelihood
+
+Karena $Y_i \in \{0,1\}$, distribusi yang digunakan adalah **Bernoulli**. Fungsi likelihood-nya adalah:
+
+$$L(\boldsymbol{\beta}) = \prod_{i=1}^{n} \pi_i^{Y_i} (1 - \pi_i)^{1 - Y_i}$$
+
+**Log-likelihood** (lebih mudah dioptimasi):
+
+$$\ell(\boldsymbol{\beta}) = \sum_{i=1}^{n} \left[ Y_i \ln(\pi_i) + (1 - Y_i) \ln(1 - \pi_i) \right]$$
+
+Tujuan estimasi adalah **memaksimumkan** $\ell(\boldsymbol{\beta})$, yang tidak memiliki solusi analitik tertutup sehingga diperlukan metode numerik.
+
+---
+
+# Metode Newton-Raphson
+
+## Konsep Dasar
+
+**Newton-Raphson** adalah metode iteratif yang mencari akar dari suatu fungsi (atau memaksimumkan/meminimumkan fungsi) dengan pendekatan turunan pertama dan kedua.
+
+Dalam konteks regresi logistik, kita ingin memaksimumkan log-likelihood, yang berarti kita mencari titik di mana **gradien = 0**.
+
+## Komponen Utama
+
+### Gradien (Score Vector) — $\mathbf{U}$
+
+Turunan pertama log-likelihood terhadap $\boldsymbol{\beta}$:
+
+$$\mathbf{U}(\boldsymbol{\beta}) = \frac{\partial \ell}{\partial \boldsymbol{\beta}} = \mathbf{X}^T (\mathbf{Y} - \boldsymbol{\pi})$$
+
+di mana $\boldsymbol{\pi} = [\pi_1, \pi_2, \ldots, \pi_n]^T$ adalah vektor probabilitas yang dihitung dari $\boldsymbol{\beta}$ saat ini.
+
+### Hessian Matrix — $\mathbf{H}$
+
+Turunan kedua log-likelihood (matriks) terhadap $\boldsymbol{\beta}$:
+
+$$\mathbf{H}(\boldsymbol{\beta}) = \frac{\partial^2 \ell}{\partial \boldsymbol{\beta} \partial \boldsymbol{\beta}^T} = -\mathbf{X}^T \mathbf{W} \mathbf{X}$$
+
+di mana $\mathbf{W}$ adalah matriks diagonal bobot berukuran $n \times n$:
+
+$$\mathbf{W} = \text{diag}\left[\pi_i(1 - \pi_i)\right]_{i=1}^n$$
+
+### Rumus Update Newton-Raphson
+
+$$\boldsymbol{\beta}^{(t+1)} = \boldsymbol{\beta}^{(t)} - \mathbf{H}^{-1}\left(\boldsymbol{\beta}^{(t)}\right) \mathbf{U}\left(\boldsymbol{\beta}^{(t)}\right)$$
+
+Substitusikan $\mathbf{H}$ dan $\mathbf{U}$:
+
+$$\boldsymbol{\beta}^{(t+1)} = \boldsymbol{\beta}^{(t)} + \left(\mathbf{X}^T \mathbf{W} \mathbf{X}\right)^{-1} \mathbf{X}^T (\mathbf{Y} - \boldsymbol{\pi})$$
+
+## Algoritma Langkah demi Langkah
+
+```
+1. Inisialisasi β⁽⁰⁾ = [0, 0, ..., 0]ᵀ
+2. Untuk setiap iterasi t = 0, 1, 2, ...:
+   a. Hitung πᵢ = 1 / (1 + exp(-Xβ⁽ᵗ⁾))          ← probabilitas
+   b. Hitung W = diag[πᵢ(1 - πᵢ)]                  ← matriks bobot
+   c. Hitung U = Xᵀ(Y - π)                          ← gradien / score
+   d. Hitung H = -XᵀWX                              ← Hessian
+   e. Update: β⁽ᵗ⁺¹⁾ = β⁽ᵗ⁾ - H⁻¹ · U
+   f. Cek konvergensi: max|β⁽ᵗ⁺¹⁾ - β⁽ᵗ⁾| < ε
+3. Jika konvergen → β̂ = β⁽ᵗ⁺¹⁾
+```
+
+## Diagram Alur Newton-Raphson
+
+```
+┌─────────────────────────────────────────┐
+│  Inisialisasi: β⁽⁰⁾ = 0, iterasi = 0   │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│  Hitung π = sigmoid(Xβ)                 │
+│  Hitung W = diag[π(1-π)]               │
+│  Hitung U = Xᵀ(Y - π)                  │
+│  Hitung H = -XᵀWX                      │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│  Update: β_baru = β - H⁻¹·U            │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+              Konvergen?  ──── YA ──→  β̂ = β_baru
+                 │
+                TIDAK
+                 │
+                 ▼
+          β = β_baru, iterasi++
+```
+
+---
+
+# Studi Kasus: Heart Disease Cleveland
+
+## Deskripsi Data
+
+Dataset yang digunakan adalah **Cleveland Heart Disease Dataset** yang berisi data klinis pasien. Variabel respons adalah `condition`:
+- `0` = Tidak terdeteksi penyakit jantung
+- `1` = Terdeteksi penyakit jantung
+
+```{r load-data}
+# Load dataset
+heart <- read.csv("C:/Users/dewad/Downloads/archive/heart_cleveland_upload.csv")
+
+# Tampilkan struktur data
+str(heart)
+```
+
+```{r eda}
+# Ringkasan statistik
+summary(heart)
+```
+
+```{r distribusi-target}
+# Distribusi variabel target
+cat("Distribusi Variabel Condition:\n")
+table(heart$condition)
+cat("\nProporsi:\n")
+round(prop.table(table(heart$condition)) * 100, 2)
+```
+
+```{r visualisasi-target, fig.cap="Distribusi Variabel Respons (condition)"}
+# Visualisasi distribusi
+barplot(
+  table(heart$condition),
+  col  = c("#3498db", "#e74c3c"),
+  main = "Distribusi Kondisi Penyakit Jantung",
+  xlab = "Condition (0 = Tidak Sakit, 1 = Sakit)",
+  ylab = "Jumlah Pasien",
+  names.arg = c("Tidak Sakit (0)", "Sakit (1)")
+)
+```
+
+## Pemilihan Variabel Prediktor
+
+Untuk studi kasus ini, kita gunakan tiga prediktor yang secara medis relevan:
+
+| Variabel   | Keterangan                             | Tipe      |
+|------------|----------------------------------------|-----------|
+| `age`      | Usia pasien (tahun)                    | Numerik   |
+| `thalach`  | Detak jantung maksimum (bpm)           | Numerik   |
+| `oldpeak`  | Depresi ST (hasil EKG)                 | Numerik   |
+
+```{r persiapan-data}
+# Pilih variabel yang akan digunakan
+heart_sub <- heart[, c("condition", "age", "thalach", "oldpeak")]
+
+# Cek missing values
+cat("Missing values per kolom:\n")
+colSums(is.na(heart_sub))
+
+# Hapus baris dengan missing values jika ada
+heart_sub <- na.omit(heart_sub)
+cat("\nJumlah observasi setelah cleaning:", nrow(heart_sub), "\n")
+```
+
+```{r visualisasi-prediktor, fig.cap="Boxplot Prediktor vs Kondisi Penyakit Jantung"}
+# Visualisasi prediktor vs target
+par(mfrow = c(1, 3))
+
+boxplot(age ~ condition, data = heart_sub,
+        col = c("#3498db","#e74c3c"),
+        main = "Usia vs Kondisi",
+        xlab = "Condition", ylab = "Usia (tahun)",
+        names = c("Tidak Sakit","Sakit"))
+
+boxplot(thalach ~ condition, data = heart_sub,
+        col = c("#3498db","#e74c3c"),
+        main = "Detak Jantung Max vs Kondisi",
+        xlab = "Condition", ylab = "Thalach (bpm)",
+        names = c("Tidak Sakit","Sakit"))
+
+boxplot(oldpeak ~ condition, data = heart_sub,
+        col = c("#3498db","#e74c3c"),
+        main = "Depresi ST vs Kondisi",
+        xlab = "Condition", ylab = "Oldpeak",
+        names = c("Tidak Sakit","Sakit"))
+
+par(mfrow = c(1, 1))
+```
+
+## Estimasi dengan Fungsi `glm()` (Referensi)
+
+Sebelum mengimplementasikan Newton-Raphson secara manual, kita gunakan fungsi bawaan R sebagai **benchmark**.
+
+```{r glm-referensi}
+# Model regresi logistik biner dengan glm()
+model_glm <- glm(
+  condition ~ age + thalach + oldpeak,
+  data   = heart_sub,
+  family = binomial
+)
+
+summary(model_glm)
+```
+
+```{r koefisien-glm}
+cat("Koefisien estimasi dari glm():\n")
+coef(model_glm)
+```
+
+## Implementasi Newton-Raphson Manual
+
+```{r newton-raphson}
+# ============================================================
+# PERSIAPAN DATA
+# ============================================================
+
+# Matriks X (dengan kolom intercept = 1)
+X <- as.matrix(cbind(
+  Intercept = 1,
+  age       = heart_sub$age,
+  thalach   = heart_sub$thalach,
+  oldpeak   = heart_sub$oldpeak
+))
+
+# Vektor Y (variabel respons)
+Y <- as.matrix(heart_sub$condition)
+
+# ============================================================
+# INISIALISASI
+# ============================================================
+
+beta_nr   <- matrix(0, nrow = ncol(X), ncol = 1)  # β⁽⁰⁾ = 0
+toleransi <- 1e-6   # Batas konvergensi
+maks_iter <- 100    # Maksimal iterasi
+selisih   <- 100    # Nilai awal selisih (> toleransi)
+iterasi   <- 0      # Counter iterasi
+
+# Simpan riwayat untuk visualisasi
+riwayat_beta   <- list()
+riwayat_selisih <- c()
+
+# ============================================================
+# ITERASI NEWTON-RAPHSON
+# ============================================================
+
+cat("========================================\n")
+cat("   Proses Iterasi Newton-Raphson\n")
+cat("========================================\n")
+
+while (selisih > toleransi && iterasi < maks_iter) {
+  
+  # --- Langkah 1: Hitung probabilitas π ---
+  # π_i = 1 / (1 + exp(-Xβ))
+  pi_i <- 1 / (1 + exp(-X %*% beta_nr))
+  
+  # --- Langkah 2: Hitung matriks bobot diagonal W ---
+  # W = diag[π_i * (1 - π_i)]
+  w_vec <- as.vector(pi_i * (1 - pi_i))
+  W     <- diag(w_vec)
+  
+  # --- Langkah 3: Hitung gradien U ---
+  # U = Xᵀ(Y - π)
+  U <- t(X) %*% (Y - pi_i)
+  
+  # --- Langkah 4: Hitung Hessian H ---
+  # H = -XᵀWX
+  H <- -t(X) %*% W %*% X
+  
+  # --- Langkah 5: Update β ---
+  # β_baru = β_lama - H⁻¹ · U
+  beta_baru <- beta_nr - solve(H) %*% U
+  
+  # --- Cek konvergensi ---
+  selisih <- max(abs(beta_baru - beta_nr))
+  
+  # Simpan nilai
+  beta_nr              <- beta_baru
+  iterasi              <- iterasi + 1
+  riwayat_beta[[iterasi]] <- as.vector(beta_nr)
+  riwayat_selisih[iterasi] <- selisih
+  
+  # Cetak progress
+  cat(sprintf("Iterasi %3d | Selisih: %.2e | β₀=%.4f | β₁=%.4f | β₂=%.4f | β₃=%.4f\n",
+              iterasi, selisih,
+              beta_nr[1], beta_nr[2], beta_nr[3], beta_nr[4]))
+}
+
+cat("========================================\n")
+cat(sprintf("Konvergen setelah %d iterasi.\n", iterasi))
+cat("========================================\n")
+```
+
+## Hasil Estimasi
+
+```{r hasil-estimasi}
+# Tampilkan hasil estimasi Newton-Raphson
+cat("\n===== HASIL ESTIMASI NEWTON-RAPHSON =====\n")
+hasil_nr <- data.frame(
+  Parameter = c("Intercept", "age", "thalach", "oldpeak"),
+  Estimasi_NR  = round(as.vector(beta_nr), 6),
+  Estimasi_GLM = round(as.vector(coef(model_glm)), 6)
+)
+print(hasil_nr)
+
+cat("\nPerbandingan max selisih antar metode:\n")
+cat(sprintf("Max |β_NR - β_GLM| = %.2e\n",
+            max(abs(as.vector(beta_nr) - as.vector(coef(model_glm))))))
+```
+
+## Visualisasi Konvergensi
+
+```{r visualisasi-konvergensi, fig.cap="Konvergensi Selisih Beta per Iterasi"}
+plot(
+  1:iterasi, riwayat_selisih,
+  type = "b",
+  col  = "#e74c3c",
+  pch  = 19,
+  lwd  = 2,
+  log  = "y",
+  main = "Konvergensi Newton-Raphson",
+  xlab = "Iterasi",
+  ylab = "Max |Δβ| (skala log)"
+)
+abline(h = toleransi, lty = 2, col = "gray40")
+legend("topright", legend = c("Selisih β", "Batas toleransi"),
+       col = c("#e74c3c", "gray40"), lty = c(1,2), pch = c(19, NA))
+```
+
+```{r visualisasi-beta-path, fig.cap="Lintasan Estimasi Koefisien per Iterasi"}
+# Konversi riwayat beta ke matriks
+beta_mat <- do.call(rbind, riwayat_beta)
+
+# Plot lintasan setiap koefisien
+matplot(
+  1:iterasi, beta_mat,
+  type = "l",
+  lwd  = 2,
+  lty  = 1,
+  col  = c("#2c3e50","#3498db","#e74c3c","#27ae60"),
+  main = "Lintasan Estimasi Koefisien β",
+  xlab = "Iterasi",
+  ylab = "Nilai Estimasi β"
+)
+legend("topright",
+       legend = c("Intercept","age","thalach","oldpeak"),
+       col    = c("#2c3e50","#3498db","#e74c3c","#27ae60"),
+       lty = 1, lwd = 2)
+```
+
+---
+
+# Interpretasi Model
+
+## Koefisien dan Odds Ratio
+
+```{r interpretasi}
+beta_final <- as.vector(beta_nr)
+names(beta_final) <- c("Intercept", "age", "thalach", "oldpeak")
+
+# Odds Ratio = exp(β)
+odds_ratio <- exp(beta_final[-1])
+
+cat("===== INTERPRETASI KOEFISIEN =====\n\n")
+cat("Persamaan logit:\n")
+cat(sprintf("logit(π) = %.4f + %.4f·age + %.4f·thalach + %.4f·oldpeak\n\n",
+            beta_final[1], beta_final[2], beta_final[3], beta_final[4]))
+
+cat("Odds Ratio:\n")
+for(i in seq_along(odds_ratio)) {
+  cat(sprintf("  exp(β_%s) = %.4f\n", names(odds_ratio)[i], odds_ratio[i]))
+}
+
+cat("\nInterpretasi:\n")
+cat(sprintf("  • Setiap penambahan 1 tahun usia → odds penyakit jantung x %.4f\n", odds_ratio["age"]))
+cat(sprintf("  • Setiap kenaikan 1 bpm detak jantung max → odds penyakit jantung x %.4f\n", odds_ratio["thalach"]))
+cat(sprintf("  • Setiap kenaikan 1 unit oldpeak → odds penyakit jantung x %.4f\n", odds_ratio["oldpeak"]))
+```
+
+## Prediksi Probabilitas
+
+```{r prediksi}
+# Hitung probabilitas prediksi
+pi_pred <- as.vector(1 / (1 + exp(-X %*% beta_nr)))
+
+# Klasifikasi dengan threshold 0.5
+y_pred <- ifelse(pi_pred >= 0.5, 1, 0)
+
+# Contoh prediksi untuk 10 observasi pertama
+cat("Contoh prediksi (10 observasi pertama):\n")
+hasil_pred <- data.frame(
+  Y_aktual   = heart_sub$condition[1:10],
+  Prob_pred  = round(pi_pred[1:10], 4),
+  Y_prediksi = y_pred[1:10]
+)
+print(hasil_pred)
+```
+
+```{r distribusi-probabilitas, fig.cap="Distribusi Probabilitas Prediksi"}
+# Histogram probabilitas prediksi
+hist(
+  pi_pred,
+  breaks = 20,
+  col    = "#3498db",
+  border = "white",
+  main   = "Distribusi Probabilitas Prediksi",
+  xlab   = "P(Y = 1 | X)",
+  ylab   = "Frekuensi"
+)
+abline(v = 0.5, col = "#e74c3c", lwd = 2, lty = 2)
+legend("top", legend = "Threshold = 0.5",
+       col = "#e74c3c", lty = 2, lwd = 2)
+```
+
+## Evaluasi Model
+
+```{r evaluasi}
+# Confusion Matrix
+conf_mat <- table(Aktual = heart_sub$condition, Prediksi = y_pred)
+cat("Confusion Matrix:\n")
+print(conf_mat)
+
+# Hitung metrik evaluasi
+TP <- conf_mat[2,2]
+TN <- conf_mat[1,1]
+FP <- conf_mat[1,2]
+FN <- conf_mat[2,1]
+
+akurasi    <- (TP + TN) / sum(conf_mat)
+sensitivitas <- TP / (TP + FN)
+spesifisitas <- TN / (TN + FP)
+presisi    <- TP / (TP + FP)
+
+cat("\n===== METRIK EVALUASI =====\n")
+cat(sprintf("Akurasi      : %.4f (%.2f%%)\n", akurasi, akurasi*100))
+cat(sprintf("Sensitivitas : %.4f (%.2f%%)\n", sensitivitas, sensitivitas*100))
+cat(sprintf("Spesifisitas : %.4f (%.2f%%)\n", spesifisitas, spesifisitas*100))
+cat(sprintf("Presisi      : %.4f (%.2f%%)\n", presisi, presisi*100))
+```
+
+---
+
+# Perbandingan: Newton-Raphson vs IRLS
+
+## Algoritma IRLS (Iteratively Reweighted Least Squares)
+
+IRLS adalah alternatif dari Newton-Raphson yang menggunakan pendekatan *Weighted Least Squares* berulang. Perbedaannya terletak pada cara update $\boldsymbol{\beta}$:
+
+**Newton-Raphson:**
+$$\boldsymbol{\beta}^{(t+1)} = \boldsymbol{\beta}^{(t)} - \mathbf{H}^{-1} \mathbf{U}$$
+
+**IRLS** — melalui *working response* $\mathbf{z}$:
+$$\mathbf{z} = \mathbf{X}\boldsymbol{\beta}^{(t)} + \mathbf{W}^{-1}(\mathbf{Y} - \boldsymbol{\pi})$$
+$$\boldsymbol{\beta}^{(t+1)} = (\mathbf{X}^T \mathbf{W} \mathbf{X})^{-1} \mathbf{X}^T \mathbf{W} \mathbf{z}$$
+
+Secara matematis, keduanya **ekuivalen** dan akan menghasilkan estimasi yang sama jika konvergen.
+
+```{r irls}
+# ============================================================
+# IMPLEMENTASI IRLS
+# ============================================================
+
+beta_irls <- matrix(0, nrow = ncol(X), ncol = 1)
+selisih   <- 100
+iterasi_irls <- 0
+
+cat("===== Iterasi IRLS =====\n")
+while (selisih > toleransi && iterasi_irls < maks_iter) {
+  
+  pi_i <- 1 / (1 + exp(-X %*% beta_irls))
+  
+  w    <- as.vector(pi_i * (1 - pi_i))
+  W    <- diag(w)
+  
+  # Working response
+  z    <- X %*% beta_irls + (Y - pi_i) / w
+  
+  # WLS update
+  beta_baru <- solve(t(X) %*% W %*% X) %*% (t(X) %*% W %*% z)
+  
+  selisih      <- max(abs(beta_baru - beta_irls))
+  beta_irls    <- beta_baru
+  iterasi_irls <- iterasi_irls + 1
+  
+  cat(sprintf("Iterasi %3d | Selisih: %.2e\n", iterasi_irls, selisih))
+}
+```
+
+```{r perbandingan-hasil}
+cat("\n===== PERBANDINGAN HASIL TIGA METODE =====\n")
+perbandingan <- data.frame(
+  Parameter    = c("Intercept", "age", "thalach", "oldpeak"),
+  Newton_Raphson = round(as.vector(beta_nr), 6),
+  IRLS           = round(as.vector(beta_irls), 6),
+  GLM_Builtin    = round(as.vector(coef(model_glm)), 6)
+)
+print(perbandingan)
+
+cat("\n[Catatan] Newton-Raphson dan IRLS secara matematis ekuivalen.\n")
+cat("Perbedaan kecil hanya karena presisi floating point.\n")
+```
+
+---
+
+# Ringkasan
+
+```{r ringkasan-akhir}
+cat("╔══════════════════════════════════════════════════════╗\n")
+cat("║     RINGKASAN: REGRESI LOGISTIK BINER               ║\n")
+cat("║     METODE NEWTON-RAPHSON                           ║\n")
+cat("╠══════════════════════════════════════════════════════╣\n")
+cat("║  Dataset    : Cleveland Heart Disease               ║\n")
+cat(sprintf("║  Observasi  : %d                                   ║\n", nrow(heart_sub)))
+cat("║  Prediktor  : age, thalach, oldpeak                ║\n")
+cat("║  Respons    : condition (0/1)                      ║\n")
+cat("╠══════════════════════════════════════════════════════╣\n")
+cat(sprintf("║  Iterasi    : %d                                    ║\n", iterasi))
+cat(sprintf("║  Toleransi  : %.0e                               ║\n", toleransi))
+cat(sprintf("║  Akurasi    : %.2f%%                               ║\n", akurasi*100))
+cat("╚══════════════════════════════════════════════════════╝\n")
+
+cat("\nPersamaan Model Final:\n")
+cat(sprintf("logit(π) = %.4f + %.4f·age + %.4f·thalach + %.4f·oldpeak\n",
+            beta_final[1], beta_final[2], beta_final[3], beta_final[4]))
+cat("\nP(sakit jantung | X) = 1 / (1 + exp(-(logit)))\n")
+```
+
+---
+
+# Referensi
+
+1. Agresti, A. (2002). *Categorical Data Analysis* (2nd ed.). Wiley.
+2. Hosmer, D. W., Lemeshow, S., & Sturdivant, R. X. (2013). *Applied Logistic Regression* (3rd ed.). Wiley.
+3. McCullagh, P., & Nelder, J. A. (1989). *Generalized Linear Models* (2nd ed.). Chapman & Hall.
+4. James, G., et al. (2013). *An Introduction to Statistical Learning with Applications in R*. Springer.
+5. Géron, A. (2019). *Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow*. O'Reilly Media.
+
+---
+
+*Dokumen ini dibuat untuk memenuhi tugas Mata Kuliah Komputasi Sains Data (SD234402)*  
+*Institut Teknologi Sepuluh Nopember — Fakultas Sains dan Analitika Data*
