@@ -1,0 +1,165 @@
+---
+title: "Github dan Git"
+author: "Juan Glori"
+date: "2026-04-20"
+output: html_document
+---
+
+# GitHub dan Git
+
+## Apa Itu GitHub?
+
+**Git adalah sistem version control** yang digunakan untuk **melacak, menyimpan, dan mengelola perubahan file** dalam suatu project secara terstruktur.
+
+**GitHub adalah platform berbasis web** yang digunakan untuk **menyimpan** repository Git secara online, serta mendukung kolaborasi, sinkronisasi, dan backup project.
+
+---
+
+## Register Akun 
+
+1. **Sign Up Website GitHub** : https://github.com
+
+2. **Masukkan Data Diri**
+   - Isi email
+   - Buat password
+   - Pilih username
+
+3. **Verifikasi akun di email**
+   - Masukkan kode verifikasi yang dikirim ke email
+   - Selesaikan puzzle/verifikasi keamanan
+
+4. **Pilih Preferensi (Opsional)**
+   - Pilih minat atau kebutuhan (boleh di-skip)
+
+5. **Selesai**
+   - Klik Create account
+   - Akun GitHub siap digunakan
+
+---
+
+## Git 
+
+### 1. Install Git
+
+Download Git di https://git-scm.com lalu install. Setelah itu, cek menggunakan Terminal / Git Bash:
+
+```{r engine='bash', eval=FALSE}
+which git
+## /usr/bin/git
+
+git --version
+## git version 2.50.1
+```
+
+### 2. Konfigurasi Git (git config)
+
+Mengatur identitas di Git. Username dan email ini akan muncul di setiap commit yang dibuat.
+
+set username, email, verifikasi konfigurasi:
+
+```{r engine='bash', eval=FALSE}
+git config --global user.name "Jane Doe"
+git config --global user.email "jane@example.com"
+git config --global --list
+```
+
+---
+
+## Personal Access Token (PAT)
+
+Langkah membuat PAT:
+
+1. **Buka Settings Github** : klik foto profil lalu Settings
+
+2. **Developer Settings** : scroll ke bawah lalu Developer settings
+
+3. **Personal access tokens** : pilih Personal access tokens lalu Tokens (classic)
+
+4. **Isi form token, kemudian generate dan simpan**
+
+---
+
+## Buat Repository Baru di GitHub
+
+### 1. Login ke akun GitHub, lalu klik tombol "+" di pojok kanan atas dan pilih New repository
+
+### 2. Isi detail repository:
+
+- **Repository name** : `my_repo` atau sesuai dengan nama yang dimau
+- **Deskripsi** : "Repository untuk testing my Git/GitHub setup" atau deskripsi serupa
+- **Visibility** : Public
+- **Initialize repository** : kosongkan (jangan Add README dulu agar kita push dari lokal)
+
+### 3. Setelah terisi semua, klik "Create repository". GitHub akan menampilkan halaman Quick Setup yang berisi instruksi dan URL remote repository yang akan kita gunakan.
+
+Perintah pada halaman Quick Setup GitHub (...or create a new repository on the command line):
+
+```{r engine='bash', eval=FALSE}
+echo "# my_repo" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/annisaamz/my_repo.git
+git push -u origin main
+```
+
+---
+
+## Clone Repository ke Komputer Lokal
+
+Setelah repo dibuat di GitHub, unduh ke komputer menggunakan command line:
+
+1. Buka Terminal (Mac/Linux) atau Git Bash (Windows)
+2. Pindah ke direktori yang diinginkan
+
+```{r engine='bash', eval=FALSE}
+cd /d D:\komsada
+```
+
+---
+
+## Upload Code ke GitHub dari Folder Lokal
+
+### 1. Inisialisasi Git Repository
+
+```{r engine='bash', eval=FALSE}
+git init
+## Initialized empty Git repository in D:/komsada/.git/
+```
+
+### 2. Tambahkan semua file ke staging area
+
+```{r engine='bash', eval=FALSE}
+git add .
+```
+
+### 3. Melakukan Commit
+
+```{r engine='bash', eval=FALSE}
+git commit -m "first commit"
+## On branch master
+## 
+## Initial commit
+## 
+## nothing to commit (create/copy files and use "git add" to track)
+```
+
+### 4. Mengatur Nama Branch Utama
+
+```{r engine='bash', eval=FALSE}
+git branch -M main
+```
+
+### 5. Menghubungkan Repository Lokal ke GitHub
+
+```{r engine='bash', eval=FALSE}
+git remote add origin https://github.com/annisaamz/my_repo.git
+## error: remote origin already exists.
+```
+
+### 6. Push (Upload) Code ke GitHub
+
+```{r engine='bash', eval=FALSE}
+git push -u origin main
+```
