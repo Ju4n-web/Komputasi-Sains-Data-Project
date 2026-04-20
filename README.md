@@ -104,7 +104,7 @@ Rangkuman dan implementasi **Regresi Logistik Biner** dengan metode estimasi **N
 
 **Dosen Pengampu:**
 - Dr. Irhamah, S.Si., M.Si.
-- Widhianingsih Tintrim Dwi Ary, S.Si., M.Stat., Ph.D.
+- Tintrim Dwi Ary Widhianingsih , S.Si, M.Stat, Ph.D.
 
 ---
 
