@@ -1,0 +1,71 @@
+---
+title: "Pemodelan Time Series 1_Moving Average"
+author: "Shafa Agnia Ramadhan"
+date: "2026-04-20"
+output: html_document
+---
+
+#Load library
+```{r}
+library(dplyr)
+library(stats)
+```
+
+# Load data
+```{r cars}
+data <- read.csv("C:/[3] Sem_4/Komputasi Sains Data/train.csv")
+head(data) 
+```
+
+# Fix tanggal
+```{r}
+data$Order.Date <- as.Date(data$Order.Date, format="%d/%m/%Y")
+```
+
+# Mengelompokan data berdasarkan bulan
+```{r}
+monthly_data <- data %>%
+  group_by(format(Order.Date, "%Y-%m")) %>%
+  summarise(sales = sum(Sales))
+```
+
+# Membuat time series
+```{r}
+ts_data <- monthly_data$sales
+ts_data
+```
+
+# Menghitung Moving Average (MA 3)
+```{r}
+ma_3 <- stats::filter(ts_data, rep(1/3, 3), sides = 1)
+ma_3
+```
+
+# Visualisasi menggunakan Plot
+```{r}
+plot(ts_data, type = "l", lwd = 2,
+     xlab = "Bulan",
+     ylab = "Penjualan",
+     main = "Moving Average (MA 3)")
+
+lines(ma_3, col = "blue", lwd = 2)
+
+legend("topleft",
+       legend = c("Data Asli", "MA(3)"),
+       col = c("black", "blue"),
+       lty = 1)
+```
+
+##### Visualisasi di atas menunjukkan perbandingan antara data penjualan asli dengan hasil pemulusan menggunakan metode Moving Average orde 3 (MA(3)). Garis hitam merepresentasikan data penjualan aktual setiap bulan, sedangkan garis biru menunjukkan nilai rata-rata bergerak dari tiga periode.
+
+##### Terlihat bahwa garis MA(3) lebih halus dibandingkan data asli, sehingga membantu memperjelas pola umum dari penjualan. Dengan adanya pemulusan ini, perubahan nilai yang terlalu tajam pada data asli menjadi lebih terkendali dan tren keseluruhan lebih mudah diamati.
+
+##### Secara umum, terlihat adanya kecenderungan peningkatan penjualan pada periode-periode akhir. Hal ini dapat dilihat dari arah garis MA(3) yang cenderung naik seiring bertambahnya waktu.
+
+
+
+
+
+
+
+
