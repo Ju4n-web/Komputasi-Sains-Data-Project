@@ -2,7 +2,7 @@
 
 > **Institut Teknologi Sepuluh Nopember**  
 > Fakultas Sains dan Analitika Data | Departemen Statistika  
-> Program Sarjana Sains Data | Semester 4 | 2024/2025
+> Program Studi S1 Sains Data | Semester 4 | 2025/2026
 
 Repository ini berisi kumpulan materi, rangkuman, dan implementasi kode dari mata kuliah **Komputasi Sains Data (SD234402)**. Setiap topik disajikan dalam format R Markdown (`.Rmd`) yang dapat dijalankan secara interaktif.
 
@@ -103,10 +103,9 @@ Rangkuman dan implementasi **Regresi Logistik Biner** dengan metode estimasi **N
 | **Prasyarat** | Pemrograman Open Source |
 
 **Dosen Pengampu:**
-- Veniola Forestryani, S.Si., M.Si.
-- Erma Oktania Permatasari, S.Si., M.Si.
+- Dr. Irhamah, S.Si., M.Si.
 - Widhianingsih Tintrim Dwi Ary, S.Si., M.Stat., Ph.D.
 
 ---
 
-*Institut Teknologi Sepuluh Nopember · Fakultas Sains dan Analitika Data · 2024/2025*
+*Institut Teknologi Sepuluh Nopember · Fakultas Sains dan Analitika Data*
