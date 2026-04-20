@@ -38,7 +38,7 @@ Komputasi-Sains-Data-Project/
 ├── 3_Penjelasan_Github/       # Panduan Penggunaan GitHub
 ├── 4_Regresi_Linear/          # Regresi Linear
 ├── 5_Pemodelan_Time_Series/   # Pemodelan Time Series
-├── 6_Regresi_Logistik_Biner/  # Regresi Logistik Biner: Newton-Raphson
+├── 6_Regresi_Logistik_Biner/  # Regresi Logistik Biner: Newton-Raphson & IRLS
 └── README.md
 ```
 
